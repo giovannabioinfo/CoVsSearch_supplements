@@ -1,0 +1,48 @@
+#!/bin/bash
+#Author Diego
+#PBS -N taxonomic
+#PBS -e logs/taxonomic.err
+#PBS -o logs/taxonomic.log
+#PBS -q fila64
+#PBS -l select=1:ncpus=20
+
+#user
+user="diegoufrn"
+
+#number of threads (also in line 7)
+threads="20"
+
+path=/home/"$user"/processar/
+ids=$(ls "$path"raw)
+
+for id in $ids
+do
+        echo $id
+        /home/"$user"/2sagarana/sratoolkit.2.11.0-ubuntu64/bin/fasterq-dump "$path"raw/"$id"/"$id".sra --threads $threads -O "$path"temp
+        if [ $(ls "$path"temp | grep $id.*fastq | wc -l) -eq 2 ]
+        then
+                echo "Paired"
+                /programs/fastp/fastp -i "$path"temp/"$id"_1.fastq -I "$path"temp/"$id"_2.fastq -o "$path"temp/forward.fastq -O "$path"temp/reverse.fastq -q 20 -w $threads --detect_adapter_for_pe -h "$path"temp/"$id".html -j "$path"temp/"$id".json
+                /programs/kaiju/bin/kaiju -t /home/diegoufrn/kaiju/nodes.dmp -f /home/diegoufrn/kaiju/corona.fmi -i "$path"temp/forward.fastq -j "$path"temp/reverse.fastq -o "$path"results/"$id".out -z $threads
+                rm -r "$path"raw/"$id"
+                wc -l "$path"results/"$id".out > "$path"results/"$id"_numReads.txt
+                awk -F "\t" '{ if($1 == "C") { print $2 } }' "$path"results/"$id".out > "$path"results/"$id"_temp.out
+                sed 's/^/@/' "$path"results/"$id"_temp.out > "$path"results/"$id"_hits.out
+                grep -Fwf "$path"results/"$id"_hits.out "$path"temp/forward.fastq -A 3 --no-group-separator > "$path"results/"$id"_targetSeq_1.fastq
+                grep -Fwf "$path"results/"$id"_hits.out "$path"temp/reverse.fastq -A 3 --no-group-separator > "$path"results/"$id"_targetSeq_2.fastq
+        else
+                echo "Single"
+                /programs/fastp/fastp -i "$path"temp/"$id".fastq -o "$path"temp/forward.fastq -q 20 -w $threads -h "$path"temp/"$id".html -j "$path"temp/"$id".json
+                /programs/kaiju/bin/kaiju -t /home/diegoufrn/kaiju/nodes.dmp -f /home/diegoufrn/kaiju/corona.fmi -i "$path"temp/forward.fastq -o "$path"results/"$id".out -z $threads
+                rm -r "$path"raw/"$id"
+                wc -l "$path"results/"$id".out > "$path"results/"$id"_numReads.txt
+                awk -F "\t" '{ if($1 == "C") { print $2 } }' "$path"results/"$id".out > "$path"results/"$id"_temp.out
+                sed 's/^/@/' "$path"results/"$id"_temp.out > "$path"results/"$id"_hits.out
+                grep -Fwf "$path"results/"$id"_hits.out "$path"temp/forward.fastq -A 3 --no-group-separator > "$path"results/"$id"_targetSeq.fastq
+        fi
+        rm "$path"results/"$id".out
+        rm "$path"results/"$id"_temp.out
+        rm "$path"temp/*
+done
+
+echo "Done"

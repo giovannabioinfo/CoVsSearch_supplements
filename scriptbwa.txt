@@ -1,0 +1,13 @@
+#!/usr/bin/perl
+#Authors Jorge/Raul
+
+$GG = "/data/home/giovanna.melo/Genoma.Ref.CoVs/Coronaviridae.fasta";
+$P  = 20;
+@list = qx(ls *1.fastq.gz | cut -f 1 -d "_" );
+chomp(@list);
+
+for($i=0; $i <= $#list; $i++){
+    print "$list[$i]\n";
+    qx(bwa mem -t $P $GG $list[$i]_1.fastq.gz $list[$i]_2.fastq.gz | samtools view -hbS -F 4 -q 20 > $list[$i].bam);
+    #qx(rm $list[$i]*.fastq);
+}
